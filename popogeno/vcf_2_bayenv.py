@@ -7,7 +7,6 @@ import argparse
 from argparse import RawTextHelpFormatter
 import vcf
 
-#usage = "%prog [options] VCF"
 parser = argparse.ArgumentParser(description='converts vcf format to SNPfile as required by Bayenv2')
 
 parser.add_argument('VCF', help='vcf 4.0 (gzipped is supported)')
