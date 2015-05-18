@@ -1,3 +1,4 @@
+#!/usr/bin/python
 
 import sys ## Exportable and executable
 import os.path
@@ -15,6 +16,7 @@ parser.add_argument('-p', '--min_prop', help='minimum proportion of individuals 
 parser.add_argument('-n', '--min_number', help='minimum number of individuals with data per population (default: 0, which means all individuals per population)', metavar="<INT>", type=int, action="store")
 parser.add_argument('-r', '--random_n', help='number of randomly sampled loci to be outputted (default = 0, which means all loci)', metavar="INT", type=int, action="store", default=0)
 parser.add_argument('-m', '--popmap', help='Tab delimited text file to assign individuals to populations. col1 = population ID, col2 = individual (as in vcf).', metavar="<FILE>", type=str, action="store")
+parser.add_argument('-w', '--whitelist', help='Txt file containing a list of IDs for Loci to be retained.', metavar="<FILE>", type=str, action="store")
 
 output_group = parser.add_argument_group('Output options', 'The parameters in this group affect the format and name of the output')
 output_group.add_argument('-b', '--bayenv', help='output bayenv format (default)', action="store_true")
@@ -57,9 +59,9 @@ if args.popmap:
     			
 			popdict[pop].append(ind)
 			samples.append(ind)
-	print "individuals per population:"
+	print "\nindividuals per population (as specified by populationmap):"
 	for pop in sorted(popdict.keys()):
-		print "%s:\t%s" %(pop, popdict[pop])
+		print "%s (%i): %s" %(pop, len(popdict[pop]), ", ".join(popdict[pop]))
 else:
 	print "currently a populationmap is expected"
 	sys.exit(0)
@@ -74,6 +76,18 @@ for sam in vcf.samples:
 		print "sample %s is not present in populationmap" %sam
 		sys.exit(1)
 
+###read in whitelist and check if it's ok
+if args.whitelist:
+	whitelist = defaultdict(int)
+	WHITE = open(args.whitelist,"r")
+	for wh in WHITE.readlines():
+		whitelist[wh.strip()]+=1
+	
+	whitelist_count = len(whitelist)
+	if not whitelist_count:
+		print "\nwhitelist specified but file seems empty - might want to check that..\n"
+		sys.exit(3)
+	
 ###this produces a dictionary that contains the minimum number of indidividuals with data for each population
 minimum_counts = {}
 if isinstance(min_ind, float):
@@ -83,7 +97,7 @@ else:
 	for pop in popdict.keys():
 		minimum_counts[pop] = min_ind
 
-print "minimum counts of individuals with data:" 
+print "\nspecified minimum counts of required individuals per population:" 
 for pop in sorted(minimum_counts.keys()):
 	print "%s:\t%s" %(pop,minimum_counts[pop])
 ###############
@@ -94,66 +108,83 @@ SNPids = []
 rem_coun = 0
 
 for record in vcf: ## for each snp in the vcf
-    SNPids.append(str(record.CHROM)+"\t"+str(record.POS)+"\t"+str(record.ID))
-#    print record
-#    print record.CHROM
-#    print record.POS
-#    print record.ID
-    for pop in sorted(popdict.keys()):
-#	print pop
-	tempstring = ""
-	for sample in popdict[pop]:
-#		print sample
-#		print str(record.genotype(sample)['GT'])
+	if args.whitelist:
+#		print "currently %s elements in whitelist" %len(whitelist)
+		if len(whitelist) == 0:
+			break
 
-		tempstring = tempstring+str(record.genotype(sample)['GT'])
+		if not whitelist.has_key(str(record.ID)):
+#			print "did not find %s in whitelist" %str(record.ID)
+			continue	#if the current record is not present in the whitelist continue with the next iteration in the for loop, i.e. the next record
+		else:
+#			print "found %s in whitelist" %str(record.ID)
+			del whitelist[str(record.ID)]
 
-#	print tempstring		
+	SNPids.append(str(record.CHROM)+"\t"+str(record.POS)+"\t"+str(record.ID))
+#	print record
+#	print record.CHROM
+#	print record.POS
+#	print record.ID
+	for pop in sorted(popdict.keys()):
+#		print pop
+		tempstring = ""
+		for sample in popdict[pop]:
+#			print sample
+#			print str(record.genotype(sample)['GT'])
 
-	if tempstring.count("None") > 0:	#if there is at least one individual with missing data for the current locus
-#		print "found missing data"
-		if (len(popdict[pop]) - tempstring.count('None')) < minimum_counts[pop]:	#if there is less than the minimum number of individuals with data for this population
-#			print "found missing data in %s individual(s) - break" % tempstring.count('None')
-			minimum = len(popcounts[pop])	#record the number of loci currently recorded for the population that was identified to contain missing data for the current locus
-#			print "population %s currrently contains: %s loci" %(pop,len(popcounts[pop]))
+			tempstring = tempstring+str(record.genotype(sample)['GT'])
+
+#		print tempstring		
+
+		if tempstring.count("None") > 0:	#if there is at least one individual with missing data for the current locus
+#			print "found missing data"
+			if (len(popdict[pop]) - tempstring.count('None')) < minimum_counts[pop]:	#if there is less than the minimum number of individuals with data for this population
+#				print "found missing data in %s individual(s) - break" % tempstring.count('None')
+				minimum = len(popcounts[pop])	#record the number of loci currently recorded for the population that was identified to contain missing data for the current locus
+#				print "population %s currrently contains: %s loci" %(pop,len(popcounts[pop]))
 	
-			check_list = []
-			for pop in popcounts.keys():	#loop over all populations again
-				if len(popcounts[pop]) > minimum:	#if there is a population that contains more loci than the the one that had been found to contain missing data for teh current locus. May happen if this population was succesfully processed for this locus before any missing data was encountert for a subsequent population
-#					print "will pop last element from population %s" %pop
-					popcounts[pop].pop()	#remove the last locus from the population
+				check_list = []
+				for pop in popcounts.keys():	#loop over all populations again
+					if len(popcounts[pop]) > minimum:	#if there is a population that contains more loci than the the one that had been found to contain missing data for teh current locus. May happen if this population was succesfully processed for this locus before any missing data was encountert for a subsequent population
+#						print "will pop last element from population %s" %pop
+						popcounts[pop].pop()	#remove the last locus from the population
+		
+					check_list.append(len(popcounts[pop]))	
+#					print "%s currrently contains: %s; %s" %(pop,popcounts[pop],len(popcounts[pop]))
+		
+#				print check_list
+				SNPids.pop()
+				rem_coun += 1
+				break	#break out of the loop and go to next record
 	
-				check_list.append(len(popcounts[pop]))	
-#				print "%s currrently contains: %s; %s" %(pop,popcounts[pop],len(popcounts[pop]))
-	
-#			print check_list
-			SNPids.pop()
-			rem_coun += 1
-			break	#break out of the loop and go to next record
+		refcount = str(tempstring.count('0'))
+		altcount = str(tempstring.count('1'))
+		popocount = refcount+","+altcount	
+#		print popocount
+		popcounts[pop].append(popocount)
 
-	refcount = str(tempstring.count('0'))
-	altcount = str(tempstring.count('1'))
-	popocount = refcount+","+altcount	
-#	print popocount
-	popcounts[pop].append(popocount)
 
-#	print popcounts[pop][-1]
-
-#for key in popcounts.keys():
-#	print "%s (%s): %s" %(key, len(popcounts[key]), popcounts[key])
-
-if (args.random_n == 0) or (len(popcounts[popcounts.keys()[0]]) <= args.random_n):
-	rand = range(len(popcounts[popcounts.keys()[0]]))
-#	outfile = "full_"+str(len(rand))+".bayenv"
-	print "\nrequested full set of %i SNPs (%i loci were removed because they did not meet the minimum criteria)" % (len(rand), rem_coun)
+if not args.whitelist:
+	if (args.random_n == 0) or (len(popcounts[popcounts.keys()[0]]) <= args.random_n):
+		rand = range(len(popcounts[popcounts.keys()[0]]))
+#		outfile = "full_"+str(len(rand))+".bayenv"
+		print "\nrequested full set of %i SNPs (%i loci were removed because they did not meet the minimum criteria)" % (len(rand), rem_coun)
+	else:
+		rand = random.sample(range(len(popcounts[popcounts.keys()[0]])),args.random_n)
+#		outfile = "random_"+str(len(rand))+".bayenv.in"
+		print "\nrequested randomly selected subset of %i SNPs" % (len(rand))
 else:
-	rand = random.sample(range(len(popcounts[popcounts.keys()[0]])),args.random_n)
-#	outfile = "random_"+str(len(rand))+".bayenv.in"
-	print "\nrequested randomly selected subset of %i SNPs" % (len(rand))
+	print "\nspecified whitelist with %i IDs" %whitelist_count
+	print "\n%i (%.2f %%) of the loci specified in the whitelist were found" %(len(popcounts[popcounts.keys()[0]]), float(len(popcounts[popcounts.keys()[0]]))/whitelist_count*100)
+	if len(popcounts[popcounts.keys()[0]]) != whitelist_count:
+		print "The following loci were not present in the provided vcf file:"
+		for key in sorted(whitelist.keys()):
+			print key
 
+	rand = range(len(popcounts[popcounts.keys()[0]]))
 ##############
 
-print "writing files:\n"
+print "\nwriting files:\n"
 for f in out_formats:
 	if f is 'b':
 		print "\t%s.bayenv.SNPfile\n\t%s.bayenv.SNPmap\n" %(args.out, args.out)
