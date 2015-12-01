@@ -87,7 +87,7 @@ if (args.window and not args.step) or (not args.window and args.step):
 #parse populationmap
 if args.popmap:
         if not os.path.isfile(args.popmap):
-                print "The provided populationmap is not a valid file"
+                print "The populationmap provided at: %s is not a valid file" %args.popmap
                 sys.exit(0)
         else:
                 pops = open(args.popmap ,'r')
