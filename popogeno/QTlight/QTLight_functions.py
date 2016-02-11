@@ -242,8 +242,8 @@ def calculate_rank_stats(SNP_map, infiles, ids, prefix): #these options are curr
         rep_count += 1
             
             
-    output_columns = ['avg_rank', 'med_rank', 'std_rank', 'var_rank', 'mad_rank', 'avg_rank_rel', 'med_rank_rel', 'var_rank_rel', 'var_rank_weight', 'var_weighted_avg_rank', 'var_weighted_rel_avg_rank']
-                
+    output_columns = ['avg_rank', 'med_rank', 'p20_rank', 'std_rank', 'var_rank', 'mad_rank', 'avg_rank_rel', 'med_rank_rel', 'p20_rank_rel','var_rank_rel', 'var_rank_weight', 'var_weighted_avg_rank', 'var_weighted_rel_avg_rank']
+    
     print "\nSUMMARY:\n"
     for fac in sorted(glob.keys()):
 #        print "%s: %i" %(fac, len(glob[fac]))
@@ -260,12 +260,14 @@ def calculate_rank_stats(SNP_map, infiles, ids, prefix): #these options are curr
 #            print extremes
             glob[fac][SNPid]['avg_rank'] = np.mean(glob[fac][SNPid]['ranks'])
             glob[fac][SNPid]['med_rank'] = np.median(glob[fac][SNPid]['ranks'])
+            glob[fac][SNPid]['p20_rank'] = np.percentile(glob[fac][SNPid]['ranks'], 20)
             glob[fac][SNPid]['std_rank'] = np.std(glob[fac][SNPid]['ranks'])
             glob[fac][SNPid]['var_rank'] = np.var(glob[fac][SNPid]['ranks'])
             glob[fac][SNPid]['mad_rank'] = mad(data=glob[fac][SNPid]['ranks'])
             variances.append(glob[fac][SNPid]['var_rank'])
             glob[fac][SNPid]['avg_rank_rel'] = np.mean(glob[fac][SNPid]['ranks'])/len(glob[fac])
             glob[fac][SNPid]['med_rank_rel'] = np.median(glob[fac][SNPid]['ranks'])/len(glob[fac])
+            glob[fac][SNPid]['p20_rank_rel'] = np.percentile(glob[fac][SNPid]['ranks'], 20)/len(glob[fac])
         #find maximum variance for the current factor
         max_var = max(variances)
 
@@ -281,6 +283,7 @@ def calculate_rank_stats(SNP_map, infiles, ids, prefix): #these options are curr
 
             temp_list = []
 #            outstring = str(SNPid)+','
+            
             outstring = global_dict[SNPid]['chrom']+'\t'
             for column in output_columns:
 #                print column
@@ -301,7 +304,6 @@ def calculate_rank_stats(SNP_map, infiles, ids, prefix): #these options are curr
     return_dict['extremes'] = extremes
     return_dict['SNPids'] = global_dict
     return return_dict
-
 
 # In[ ]:
 
