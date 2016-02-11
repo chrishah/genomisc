@@ -41,8 +41,14 @@ def normalize (csv, norm_prefix="", normalize=True, boxplot=False, boxplots_pref
         populations.append(temp.pop(0))
 #        print population
         for i in range(len(temp)):
-#            print "%i:%s\n" %(i, header[i])
-            columns[headers[i]].append(float(temp[i]))
+#	   print temp[i]
+#           print "%i:%s\n" %(i, header[i])
+#	    if not temp[i] == 'NA':
+	   try:
+           	columns[headers[i]].append(float(temp[i]))
+	   except ValueError:
+            	columns[headers[i]].append(temp[i])
+		
 #        print columns
  
     pops = list(sorted(set(populations)))
@@ -60,19 +66,28 @@ def normalize (csv, norm_prefix="", normalize=True, boxplot=False, boxplots_pref
 #    print "\nCalculating means\n"
     for env in headers:
         per_pop = {}
+	temp_per_env_list = []
+	for value in columns[env]:
+	     if not value == 'NA':
+		temp_per_env_list.append(value)
+#	print "global: %s\n" %(temp_per_env_list)
         for pop in pops:
 #            print pop
 #            print "%s - should be %i" %(env, len(indices[pop]))       
             per_pop_list = []
             for i in indices[pop]:
-                per_pop_list.append(columns[env][i])
+		if not columns[env][i] == 'NA':
+                	per_pop_list.append(columns[env][i])
                 
 #            print per_pop_list
 #            print "%s mean: %s" %(pop, np.mean(per_pop_list))
 #            print "%s mean: %s" %(env, np.mean(columns[env]))
 #            print "%s sd: %s" %(env, np.std(columns[env]))
             per_pop[pop] = per_pop_list
-            norm = (np.mean(per_pop_list) - np.mean(columns[env])) / np.std(columns[env])
+
+#            norm = (np.mean(per_pop_list) - np.mean(columns[env])) / np.std(columns[env])
+#	    print "%s: %s\n" %(pop, per_pop_list)
+            norm = (np.mean(per_pop_list) - np.mean(temp_per_env_list)) / np.std(temp_per_env_list)
 #            print norm
             normalized[env].append(norm)
         if boxplot:
