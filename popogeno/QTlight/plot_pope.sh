@@ -24,7 +24,7 @@ data <- read.delim(file = '$file', header = T, sep = '\\\t')
 rel_rank_cutoff <- $cutoff
 top <- subset(data, avg_rank_rel >= rel_rank_cutoff, select = c(chrom,bp,SNPID,std_rank,avg_rank_rel))
 
-svg(filename = '$prefix.svg')
+svg(filename = '$prefix-top-$cutoff.svg')
 plot(data\$avg_rank_rel, data\$std_rank/max(data\$std_rank), pch=19, cex=0.2, ylab = 'relative rank standard deviation', xlab = 'average relative rank', main = 'Transformed average Bayesfactor ranks ($id) across $num runs', xlim=c(0,1), ylim=c(0,1))
 points(top\$avg_rank_rel, top\$std_rank/max(data\$std_rank), col = 'red', pch=19, cex=0.5)
 
