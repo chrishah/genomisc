@@ -1,6 +1,123 @@
 
 # coding: utf-8
 
+def smoothing(dictionary, window_size, factor, to_smooth, significance_level=0.05, sigma_factor=1, bootstrap_reps=0, verbose=0):
+    """
+    Calculate kernel smoothed averages for sliding windows
+    """
+    from collections import defaultdict
+    import numpy as np
+    
+    scaff_dict = defaultdict(list)
+    
+    for key in dictionary['SNPids']:
+#        print key
+#        print dictionary['SNPids'][key]
+        scaff = dictionary['SNPids'][key]['chrom'].split("\t")[0]
+#        print scaff
+        if not scaff_dict.has_key(scaff):
+            scaff_dict[scaff]=[key]
+        else:
+            scaff_dict[scaff].append(key)
+        
+#    print scaff_dict
+
+    print "\n### Kernel smoothing ###\nFactor: %s\nStatistic: %s\nWindow size: %s bp" %(factor, to_smooth, window_size, )
+    if bootstrap_reps:
+        print "determining p-value based on %s bootstrap replicates" %bootstrap_reps
+        
+
+    for sc in sorted(scaff_dict.keys()):
+        if verbose:
+            print "processing %s" %sc
+        if sc:# == 'scaffold_12':# == 'scaffold_197':# == 'scaffold_1': #1246':
+#            print scaff_dict[sc]
+            for SNPID in scaff_dict[sc]: #sc]:
+#                print "current SNP: %s" %dictionary['SNPids'][SNPID]['chrom']
+                center = int(dictionary['SNPids'][SNPID]['chrom'].split("\t")[1]) #THIS IS THE POSITION OF THE WINDOW CENTER
+
+                ##calculating per window average
+                ran = [center-window_size*sigma_factor, center+window_size*sigma_factor] #THIS IS THE WINDOW RANGE
+#                print ran
+                
+                window_observations = []
+                window_locations = []
+                
+                for ind in scaff_dict[sc]:
+#                    print dictionary['SNPids'][ind]['chrom'].split("\t")[1]
+                    if int(dictionary['SNPids'][ind]['chrom'].split("\t")[1]) >= ran[0] and int(dictionary['SNPids'][ind]['chrom'].split("\t")[1]) <= ran[1]:
+#                        print "ok: %s" %ind
+#                        print dictionary['global'][factor][ind]['avg_rank']
+                        window_observations.append(dictionary['global'][factor][ind][to_smooth])
+                        window_locations.append(dictionary['SNPids'][ind]['chrom'].split("\t")[1])
+
+                w_average = weighted_average(center=center, observations=window_observations, locations=window_locations, window=window_size)      
+                dictionary['global'][factor][SNPID][to_smooth+'_smoothed'] = w_average
+
+#                print "%s\t%s" %(dictionary['SNPids'][SNPID]['chrom'].split("\t")[0], center)
+#                print window_observations
+#                print w_average
+                
+                if bootstrap_reps:
+                    count=0
+                    for i in range(bootstrap_reps):
+                        bootstrap_observations = []
+                        rand_scf_ids = []
+                        rand_scf_ids = np.random.choice(dictionary['global'][factor].keys(), len(window_locations), replace=True)
+#                        print "random SNP ids: "+str(rand_scf_ids)
+                        for r in rand_scf_ids:
+                            bootstrap_observations.append(dictionary['global'][factor][r][to_smooth])
+#                        print "bootstrapped observations: "+str(bootstrap_observations)
+                        bootstrap_w_average = weighted_average(center=center, observations=bootstrap_observations, locations=window_locations, window=window_size)      
+#                        print "bootstrap weighted average: %s vs %s" %(bootstrap_w_average, w_average)
+                        if bootstrap_w_average >= w_average:
+                            count+=1
+#                            print "bootstrap weighted average: %s vs %s" %(bootstrap_w_average, w_average)
+                    p_value=float(count)/bootstrap_reps
+                    if verbose and p_value <= significance_level:
+                        print "%s\t%s\t%s - p = %s" %(dictionary['SNPids'][SNPID]['chrom'].split("\t")[0], center, w_average, float(count)/bootstrap_reps)
+                    dictionary['global'][factor][SNPID][to_smooth+'_smoothed_p'] = p_value
+                
+                
+                
+def write_stats(dictionary, out_columns, factor, prefix):              
+    print "Wrting stats to %s" %(prefix+'_'+factor+'.txt')
+    OUT = open(prefix+'_'+factor+'.txt','w')
+    OUT.write("chrom\tbp\tSNPID\t"+"\t".join(out_columns)+'\n')
+    
+    for SNPid in dictionary['global'][factor].keys():
+        
+        temp_list = []
+        outstring = dictionary['SNPids'][SNPid]['chrom']+'\t'
+        for column in out_columns:
+#            print column
+#            print glob[fac][SNPid][column]
+            temp_list.append(str(dictionary['global'][factor][SNPid][column]))
+        outstring += "\t".join(temp_list)
+        OUT.write(outstring+'\n')
+
+    OUT.close()
+        
+                
+                
+def weighted_average(center, observations, locations, window):
+    """calculates a Gaussian Kernel average"""
+    
+    import numpy as np
+    
+    observations_weighted = []
+    weights=[]
+    
+    for i in range(len(locations)):
+        weight = np.exp((-1*(int(locations[i])-center)**2)/(2*window)**2)
+        weights.append(weight)
+        observations_weighted.append(observations[i]*weight)
+
+#    print "weighted average: "+str(np.sum(observations_weighted)/(np.sum(weights)))
+    return np.sum(observations_weighted)/(np.sum(weights))
+
+
+
 # In[ ]:
 
 def normalize (csv, norm_prefix="", normalize=True, boxplot=False, boxplots_prefix=""):
