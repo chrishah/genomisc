@@ -18,12 +18,15 @@ parser.add_argument('-r', '--random_n', help='number of randomly sampled loci to
 parser.add_argument('-m', '--popmap', help='Tab delimited text file to assign individuals to populations. col1 = population ID, col2 = individual (as in vcf).', metavar="<FILE>", type=str, action="store")
 parser.add_argument('-w', '--whitelist', help='Txt file containing a list of IDs for Loci to be retained.', metavar="<FILE>", type=str, action="store")
 parser.add_argument('--pool', help='extract read counts as allele frequencies for each sample', action="store_true")
-
+parser.add_argument('--min_global_MA_count', help='minimum number of global observations of minor allele', metavar="INT", type=int, action="store", default=0)
+parser.add_argument('--min_global_MAF', help='minimum global minor allele frequency (MAF). This option will override --min_global_MA_count.', metavar="<FLOAT>", type=float, action="store", default=0)
+parser.add_argument('--exclude_singletons', help='exclude any singleton loci, i.e. minor allele observed only once', action="store_true")
+parser.add_argument('-v','--verbose', help='verbose', action="store_true")
 
 output_group = parser.add_argument_group('Output options', 'The parameters in this group affect the format and name of the output')
 output_group.add_argument('-b', '--bayenv', help='output bayenv format (default)', action="store_true")
 output_group.add_argument('-t', '--treemix', help='output treemix format', action="store_true")
-output_group.add_argument('-o', '--out', help='prefix for output files (default: out.bayenv)', metavar="<STR>", type=str, action="store", default='bayenv')
+output_group.add_argument('-o', '--out', help='prefix for output files (default: out)', metavar="<STR>", type=str, action="store", default='out')
 args = parser.parse_args()
 
 out_formats = ['b']
@@ -37,6 +40,9 @@ if args.min_number:
 	min_ind = args.min_number
 else:
 	min_ind = args.min_prop
+
+if args.exclude_singletons:
+	args.min_global_MA_count=2
 
 #read in the vcf file
 vcf = vcf.Reader(open(args.VCF, 'r'))
@@ -119,18 +125,24 @@ else:
 	print "please provide a populationmap"
 	sys.exit(0)
 
-
+if args.min_global_MAF:
+	if args.min_global_MAF > 0.5:
+		print "\nminimum MAF can't be higher than 0.5 - try again\n"
+		sys.exit(4)
+	print "\nyou specified minimum minor allele frequency (MAF): %f\n" %args.min_global_MAF
+elif args.min_global_MA_count:
+	print "\nyou specified minimum minor allele count: %i\n" %args.min_global_MA_count
 
 #go through the actual data in the vcf file
 popcounts = defaultdict(list)
 SNPids = []
 rem_coun = 0
 list_count = 0
-ref_count = 0
-alt_count = 0
 
 for record in vcf: ## for each snp in the vcf
 	temp_pop = {}
+	ref_count = 0 	#reference allele count per locus
+	alt_count = 0	#alternative allele count per locus
 #	print record.samples
 	if args.whitelist:
 #		print "currently %s elements in whitelist" %len(whitelist)
@@ -190,6 +202,9 @@ for record in vcf: ## for each snp in the vcf
 			ref_count += int(refcount)
 			alt_count += int(altcount)
 
+#			print "refcount: %s\tref_count: %i" %(refcount,ref_count)
+#			print "altcount: %s\talt_count: %i" %(altcount,alt_count)
+
 		else:
 #			for sample in popdict[pop]:
 			if isinstance(record.genotype(pop)['AO'],list) or isinstance(record.genotype(pop)['AO'],list):
@@ -215,16 +230,24 @@ for record in vcf: ## for each snp in the vcf
 
 	
 	if len(temp_pop) == len(popdict):
-		print "good: %s" %temp_pop
-		if not ref_count and not alt_count:
-			print "but: all loci are monomorphic"
-			rem_count += 1
-			break
+		verbose_out="%s" %temp_pop
+		if args.min_global_MAF:
+			args.min_global_MA_count=int((ref_count+alt_count)*args.min_global_MAF)
 
-		SNPids.append(str(record.CHROM)+"\t"+str(record.POS)+"\t"+str(record.ID))
-		print SNPids[-1]
-		for key in temp_pop.keys():
-			popcounts[key].append(temp_pop[key])
+		if not ref_count and not alt_count:
+			verbose_out+="\texcluded: all loci are monomorphic"
+			rem_coun += 1
+#			continue
+		elif (alt_count < args.min_global_MA_count):
+			verbose_out+="\texcluded: minor allele only observed %s time(s) - minimum %i" %(alt_count, args.min_global_MA_count)
+			rem_coun += 1
+#			continue
+		else:
+			SNPids.append(str(record.CHROM)+"\t"+str(record.POS)+"\t"+str(record.ID))
+			for key in temp_pop.keys():
+				popcounts[key].append(temp_pop[key])
+		if args.verbose:
+			print "%s\t%s" %(str(record.CHROM)+"\t"+str(record.POS)+"\t"+str(record.ID),verbose_out)
 
 if not args.whitelist:
 	if (args.random_n == 0) or (len(popcounts[popcounts.keys()[0]]) <= args.random_n):
