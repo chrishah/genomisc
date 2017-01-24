@@ -15,7 +15,7 @@ optional_group = parser.add_argument_group('Output options', 'The parameters in 
 parser.add_argument('-p', '--min_prop', help='minimum proportion of individuals with data per population (default: 1.00)', metavar="<FLOAT>", type=float, action="store", default=1.0)
 parser.add_argument('-n', '--min_number', help='minimum number of individuals with data per population (default: 0, which means all individuals per population)', metavar="<INT>", type=int, action="store")
 parser.add_argument('-r', '--random_n', help='number of randomly sampled loci to be outputted (default = 0, which means all loci)', metavar="INT", type=int, action="store", default=0)
-parser.add_argument('-m', '--popmap', help='Tab delimited text file to assign individuals to populations. col1 = population ID, col2 = individual (as in vcf).', metavar="<FILE>", type=str, action="store")
+parser.add_argument('-m', '--popmap', help='Tab delimited text file to assign individuals to populations. col1 = individual (as in vcf), col2 = population ID.', metavar="<FILE>", type=str, action="store")
 parser.add_argument('-w', '--whitelist', help='Txt file containing a list of IDs for Loci to be retained.', metavar="<FILE>", type=str, action="store")
 parser.add_argument('--pool', help='extract read counts as allele frequencies for each sample', action="store_true")
 parser.add_argument('--min_global_MA_count', help='minimum number of global observations of minor allele', metavar="INT", type=int, action="store", default=0)
